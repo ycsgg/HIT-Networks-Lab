@@ -1,0 +1,10 @@
+CompileFlags:
+  Add: [
+    "-target", "x86_64-w64-windows-gnu",
+    "-D_WIN32",
+    "-D__MINGW32__",
+    "-D__GNUC__",
+    "-I", "C:/mingw64/include",
+    "-I", "C:/mingw64/x86_64-w64-mingw32/include",
+    "-I", "C:/mingw64/lib/gcc/x86_64-w64-mingw32/14.1.0/include"
+  ]
