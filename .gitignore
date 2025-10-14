@@ -1,3 +1,8 @@
 *.exe
 *.docx
 test*
+*.tmp
+tmp/*
+tmp
+obj/*
+obj
