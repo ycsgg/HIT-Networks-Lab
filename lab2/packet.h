@@ -10,7 +10,6 @@ constexpr int SEQ_SPACE = 256;      // 序列号空间大小
 enum FrameType {
     DATA = 0, // 数据帧
     ACK = 1,  // 确认帧
-    FIN = 2   // 结束帧
 };
 
 struct Packet {

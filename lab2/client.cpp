@@ -1,7 +1,13 @@
 #include "../logger/logger.h"
 #include "GBNmanager.h"
+#include "network_utils.h"
+#include <algorithm>
+#include <iostream>
 #include <string>
 #include <vector>
+#include <sstream>
+#include <fstream>
+#include <filesystem>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -12,10 +18,17 @@
 
 using logger::error;
 using logger::info;
+using logger::warn;
 using std::endl;
 using std::string;
 using std::vector;
 
+void processResponse(const std::vector<uint8_t> &data) {
+    if (data.empty())
+        return;
+    string data_str(data.begin(), data.end());
+    info << "[CLIENT] Received response: " << data_str << endl;
+}
 int main() {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -65,61 +78,113 @@ int main() {
          << TUNNEL_PORT << endl;
     info << "--------------------------------------------------------" << endl;
 
-    // 模拟应用层数据源 (Client -> Server)
-    std::vector<std::string> messages_to_send = {
-        "C_MSG_A: Ping Server!",       "C_MSG_B: Are you there?",
-        "C_MSG_C: Final check.",       "C_MSG_D: Data packet four.",
-        "C_MSG_E: Fifth data packet.",
-    };
-    int next_msg_index = 0;
-
     while (true) {
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(clientSock, &readfds);
+        info << "Command >> ";
+        info.flush();
+        std::string line;
+        if (!std::getline(std::cin, line)) break;
+        if (line.empty()) continue;
 
-        timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 10 * 1000;
+        std::istringstream iss(line);
+        std::string cmd;
+        iss >> cmd;
 
-        if (select(0, &readfds, NULL, NULL, &tv) > 0) {
-            // 收到数据
-            Packet received_packet;
-            sockaddr_in senderAddr;
-            int senderAddrLen = sizeof(senderAddr);
-            int bytes = recvfrom(clientSock, (char *)&received_packet,
-                                 sizeof(received_packet), 0,
-                                 (SOCKADDR *)&senderAddr, &senderAddrLen);
+        if (cmd == "time") {
+            std::string command_data = "time_request";
+            sendData(gbnManager, std::vector<uint8_t>(command_data.begin(), command_data.end()));
+            std::vector<uint8_t> response = recvData(gbnManager);
+            processResponse(response);
+            continue;
+        }
 
-            if (bytes > 0) {
-                // 交给 GBN Manager 处理收到的包
-                gbnManager.processReceivedPacket(received_packet, senderAddr);
+        if (cmd == "quit") {
+            std::string command_data = "quit";
+            sendData(gbnManager, std::vector<uint8_t>(command_data.begin(), command_data.end()));
+            std::vector<uint8_t> response = recvData(gbnManager);
+            processResponse(response);
+            info << "Quit command processed. Exiting." << std::endl;
+            break;
+        }
+
+        if (cmd == "upload") {
+            std::string localpath, remotename;
+            iss >> localpath >> remotename;
+            if (localpath.empty()) {
+                warn << "Usage: upload <localpath> [remotename]" << endl;
+                continue;
             }
+            if (remotename.empty()) {
+                remotename = std::filesystem::path(localpath).filename().string();
+            }
+
+            // 读取本地文件
+            std::ifstream ifs(localpath, std::ios::binary);
+            if (!ifs) {
+                error << "Failed to open local file: " << localpath << endl;
+                continue;
+            }
+            std::vector<uint8_t> file_bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+
+            // 发送控制消息
+            std::string ctrl = std::string("UPLOAD:") + remotename;
+            sendData(gbnManager, std::vector<uint8_t>(ctrl.begin(), ctrl.end()));
+
+            // 发送文件内容
+            sendData(gbnManager, file_bytes);
+
+            // 等待服务器确认
+            std::vector<uint8_t> response = recvData(gbnManager);
+            processResponse(response);
+            continue;
         }
 
-        // // 从应用层获取数据并发送 (Client -> Server)
-        // if (next_msg_index < messages_to_send.size()) {
-        //     const std::string &msg = messages_to_send[next_msg_index];
+        if (cmd == "download") {
+            std::string remotename, localname;
+            iss >> remotename >> localname;
+            if (remotename.empty() || localname.empty()) {
+                warn << "Usage: download <remotename> <localname>" << endl;
+                continue;
+            }
 
-        //     // 调用 GBN Manager 的发送方法
-        //     if (gbnManager.sendData(msg.c_str(), msg.length())) {
-        //         // 只有当 sendData 成功 (即窗口未满) 时，才移动到下一个消息
-        //         next_msg_index++;
-        //     }
-        // }
+            // 发送下载请求
+            std::string ctrl = std::string("DOWNLOAD:") + remotename;
+            sendData(gbnManager, std::vector<uint8_t>(ctrl.begin(), ctrl.end()));
 
-        // 检查超时并重传
-        gbnManager.checkTimeoutAndRetransmit();
+            // 先接收控制响应（可能是 ERROR 或 FILESIZE）
+            std::vector<uint8_t> header = recvData(gbnManager);
+            if (header.empty()) {
+                error << "Empty response for download request" << endl;
+                continue;
+            }
+            std::string header_str(header.begin(), header.end());
+            if (header_str.rfind("ERROR:", 0) == 0) {
+                info << "Server error: " << header_str << endl;
+                continue;
+            }
+            if (header_str.rfind("FILESIZE:", 0) == 0) {
+                // 接收文件数据
+                std::vector<uint8_t> file_bytes = recvData(gbnManager);
+                if (file_bytes.empty()) {
+                    error << "Failed to receive file bytes" << endl;
+                    continue;
+                }
+                // 写入本地文件
+                std::ofstream ofs(localname, std::ios::binary);
+                if (!ofs) {
+                    error << "Failed to create local file: " << localname << endl;
+                    continue;
+                }
+                ofs.write((const char *)file_bytes.data(), file_bytes.size());
+                info << "Downloaded " << remotename << " -> " << localname << endl;
+                continue;
+            }
 
-        // 简单退出机制：所有消息都发送成功（窗口基序号追上
-        // next_seq_num），则等待一段时间后退出
-        if (next_msg_index >= messages_to_send.size() &&
-            gbnManager.isWindowFull() == false) {
-            info << "All client data sent and acknowledged. "
-                 "Waiting for server traffic..." << endl;
+            warn << "Unexpected response header: " << header_str << endl;
+            continue;
         }
+
+        warn << "Unknown command: " << cmd << endl;
     }
-
     // 7. 清理
     closesocket(clientSock);
     WSACleanup();

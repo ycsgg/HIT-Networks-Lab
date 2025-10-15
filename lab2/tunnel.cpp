@@ -12,9 +12,9 @@
 #define LOCALHOST_IP "127.0.0.1"
 
 constexpr int TUNNEL_PORT = 8888;
-constexpr int SERVER_PORT = 8887;
-constexpr int CLIENT_PORT = 8889;
-constexpr double LOSS_RATE = 0.3; // 模拟丢包概率
+constexpr int SERVER_PORT = 8889;
+constexpr int CLIENT_PORT = 8887;
+constexpr double LOSS_RATE = 0; // 模拟丢包概率
 using logger::error;
 using logger::info;
 using logger::warn;
@@ -90,8 +90,8 @@ int main() {
         }
 
         if ((double)rand() / RAND_MAX < LOSS_RATE) {
-            warn << "Packet dropped! Seq/Ack: " << packet.seq_num << "/"
-                 << packet.ack_num << " from " << sender << " to " << target
+            warn << "Packet dropped! Seq/Ack: " << (int)packet.seq_num << "/"
+                 << (int)packet.ack_num << " from " << sender << " to " << target
                  << endl;
             continue; // 丢包
         }
@@ -99,8 +99,8 @@ int main() {
         // 转发数据包
         sendto(tunnelSock, (const char *)&packet, bytesReceived, 0,
                (SOCKADDR *)&targetAddr, sizeof(targetAddr));
-        info << "Packet forwarded Seq/Ack: " << packet.seq_num << "/"
-             << packet.ack_num << " from " << sender << " to " << target
+        info << "Packet forwarded Seq/Ack: " << (int)packet.seq_num << "/"
+             << (int)packet.ack_num << " from " << sender << " to " << target
              << endl;
     }
 }

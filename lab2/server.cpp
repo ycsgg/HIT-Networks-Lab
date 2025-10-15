@@ -1,7 +1,11 @@
-#include "GBNmanager.h"
 #include "../logger/logger.h"
+#include "GBNmanager.h"
+#include "network_utils.h"
+#include <algorithm>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <filesystem>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -12,9 +16,82 @@
 
 using logger::error;
 using logger::info;
+using logger::warn;
 using std::endl;
 using std::string;
 using std::vector;
+
+void processAndRespond(GBNManager &gbnManager,
+                       const std::vector<uint8_t> &data) {
+    if (data.empty())
+        return;
+
+    std::string command_str(data.begin(), data.end());
+    info << "[SERVER] Received Command: " << command_str << std::endl;
+
+    // 处理控制消息：UPLOAD:filename 或 DOWNLOAD:filename 或普通命令
+    if (command_str.rfind("UPLOAD:", 0) == 0) {
+        std::string filename = command_str.substr(strlen("UPLOAD:"));
+        // 接收文件内容
+        std::vector<uint8_t> file_bytes = recvData(gbnManager);
+        if (file_bytes.empty()) {
+            std::string err = "ERROR: Empty file received";
+            sendData(gbnManager, std::vector<uint8_t>(err.begin(), err.end()));
+            return;
+        }
+        // 确保 uploads 目录存在
+        std::filesystem::create_directories("uploads");
+        std::string outpath = std::string("uploads/") + filename;
+        std::ofstream ofs(outpath, std::ios::binary);
+        if (!ofs) {
+            std::string err = std::string("ERROR: Cannot create file: ") + outpath;
+            sendData(gbnManager, std::vector<uint8_t>(err.begin(), err.end()));
+            return;
+        }
+        ofs.write((const char *)file_bytes.data(), file_bytes.size());
+        std::string ok = std::string("UPLOAD_OK:") + filename;
+        sendData(gbnManager, std::vector<uint8_t>(ok.begin(), ok.end()));
+        info << "Saved uploaded file to: " << outpath << std::endl;
+        return;
+    }
+
+    if (command_str.rfind("DOWNLOAD:", 0) == 0) {
+        std::string filename = command_str.substr(strlen("DOWNLOAD:"));
+        std::string path = std::string("uploads/") + filename;
+        if (!std::filesystem::exists(path)) {
+            std::string err = std::string("ERROR: File not found: ") + filename;
+            sendData(gbnManager, std::vector<uint8_t>(err.begin(), err.end()));
+            return;
+        }
+        // 读取文件并先发 header FILESIZE:NN
+        std::ifstream ifs(path, std::ios::binary);
+        std::vector<uint8_t> file_bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        std::string header = std::string("FILESIZE:") + std::to_string(file_bytes.size());
+        sendData(gbnManager, std::vector<uint8_t>(header.begin(), header.end()));
+        // 发送文件内容
+        sendData(gbnManager, file_bytes);
+        info << "Served download for: " << filename << " (" << file_bytes.size() << " bytes)" << std::endl;
+        return;
+    }
+
+    std::string response_data;
+    // 确定响应内容
+    if (command_str == "time_request") {
+        time_t now = time(0);
+        char dt[26];
+        ctime_s(dt, sizeof(dt), &now);
+        response_data = "time_response: " + string(dt);
+    } else if (command_str == "quit") {
+        response_data = "GoodBye";
+    } else {
+        response_data = "ERROR: Unknown command";
+    }
+
+    // 发送响应
+    std::vector<uint8_t> response(response_data.begin(), response_data.end());
+    sendData(gbnManager, response);
+    info << "[SERVER] Response sent successfully." << endl;
+}
 
 int main() {
     WSADATA wsaData;
@@ -50,49 +127,18 @@ int main() {
          << endl;
     info << "--------------------------------------------------------" << endl;
 
-    // 模拟应用层数据源
-    vector<string> messages_to_send = {
-        "S_MSG_01: Hello Client!",  "S_MSG_02: This is Server.",
-        "S_MSG_03: GBN A",          "S_MSG_04: GBN B",
-        "S_MSG_05: GBN C",          "S_MSG_06: Check reliable transmission.",
-        "S_MSG_07: Final Message.",
-    };
-    int next_msg_index = 0;
+    // Ensure uploads directory exists
+    std::filesystem::create_directories("uploads");
 
     while (true) {
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(serverSock, &readfds);
-
-        timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 10 * 1000; // 10毫秒
-
-        if (select(0, &readfds, NULL, NULL, &tv) > 0) {
-            Packet received_packet;
-            sockaddr_in senderAddr;
-            int senderAddrLen = sizeof(senderAddr);
-            int bytes = recvfrom(serverSock, (char *)&received_packet,
-                                 sizeof(received_packet), 0,
-                                 (SOCKADDR *)&senderAddr, &senderAddrLen);
-
-            if (bytes > 0) {
-                gbnManager.processReceivedPacket(received_packet, senderAddr);
-            }
+        // 接收客户端命令
+        std::vector<uint8_t> data = recvData(gbnManager);
+        
+        if (!data.empty()) {
+            processAndRespond(gbnManager, data);
         }
 
-        // 尝试从应用层获取数据并发送 (Server -> Client)
-        if (next_msg_index < messages_to_send.size()) {
-            const string &msg = messages_to_send[next_msg_index];
-
-            // 调用 GBN Manager 的发送方法
-            if (gbnManager.sendData(msg.c_str(), msg.length())) {
-                next_msg_index++; // 成功发送或放入窗口，则准备发送下一个消息
-            }
-        }
-
-        // 检查超时并重传
-        gbnManager.checkTimeoutAndRetransmit();
+        Sleep(10); // 避免 busy-wait
     }
 
     closesocket(serverSock);

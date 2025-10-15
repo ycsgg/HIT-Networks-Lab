@@ -6,3 +6,5 @@ tmp/*
 tmp
 obj/*
 obj
+uploads
+uploads/*

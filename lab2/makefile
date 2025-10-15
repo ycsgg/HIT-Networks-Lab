@@ -2,6 +2,9 @@ CXX = g++
 CXXFLAGS = -Wall -std=c++17 -I.
 LDFLAGS = -lWs2_32
 
+# Debug 模式的编译选项
+DEBUG_CXXFLAGS = $(CXXFLAGS) -g -DDEBUG
+
 SRCDIR = .
 LOG_SRC_PATH = ../logger/logger.cpp
 
@@ -43,9 +46,12 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 $(OBJDIR)/logger.o: $(LOG_SRC_PATH)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# ----------------- Debug 目标 -----------------
+debug: CXXFLAGS = $(DEBUG_CXXFLAGS)
+debug: all
+
 # ----------------- 清理目标 -----------------
-
 clean:
-	rm -rf $(TARGETS) $(OBJDIR)
+	rm -f $(OBJDIR)/*.o $(TARGETS)
 
-.PHONY: all clean
+.PHONY: all clean debug

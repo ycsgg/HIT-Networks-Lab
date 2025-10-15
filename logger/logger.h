@@ -15,6 +15,7 @@ enum class LogColor {
     YELLOW = FOREGROUND_RED | FOREGROUND_GREEN |
              FOREGROUND_INTENSITY,               // 亮黄色 (亮红+亮绿)
     RED = FOREGROUND_RED | FOREGROUND_INTENSITY, // 亮红色
+    BLUE = FOREGROUND_BLUE | FOREGROUND_INTENSITY, // 亮蓝色
     WHITE = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE // 默认白色
 };
 
@@ -35,8 +36,14 @@ class LogStreamBuffer : public std::stringbuf {
     protected:
     // 同步（实际输出）函数，当调用 std::endl 或 flush 时触发
     virtual int sync() override {
-        std::string log_message = str();
-        if (!log_message.empty()) {
+        // 使用 std::stringbuf::pbase() 和 std::stringbuf::pptr() 来判断是否有数据
+        // 而不是依赖 str().empty()，因为 str() 对空字符的处理可能有问题。
+        // pptr() 指向下一个要插入的位置，pbase() 指向缓冲区的起始位置。
+        // 如果它们不相等，说明缓冲区中有内容。
+        if (pbase() != pptr()) { // 检查缓冲区是否包含任何内容
+
+            std::string log_message = str(); // 提取内容
+
             // 1. 获取并格式化当前时间
             auto now = std::chrono::system_clock::now();
             auto now_t = std::chrono::system_clock::to_time_t(now);
@@ -67,11 +74,20 @@ class LogStreamBuffer : public std::stringbuf {
                 SetConsoleTextAttribute(hConsole, originalAttributes);
 
                 // 5. 清空缓冲区
-                str("");
+                str(""); // 清空缓冲区内容
+                setp(pbase(), epptr()); // 重置缓冲区指针
                 return 0; // 成功
             }
         }
-        return -1; // 失败或空消息
+        
+        // 即使没有内容，如果缓冲区指针不一致，也尝试重置。
+        if (pbase() != pptr()) {
+            str("");
+            setp(pbase(), epptr());
+        }
+
+        // 如果缓冲区为空，返回成功，否则返回 -1 表示失败
+        return 0; 
     }
 
     private:
@@ -98,4 +114,5 @@ class LogStream : public std::ostream {
 extern LogStream info;
 extern LogStream warn;
 extern LogStream error;
+extern LogStream debug;
 } // namespace logger
