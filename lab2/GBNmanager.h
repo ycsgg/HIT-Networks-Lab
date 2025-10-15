@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ManagerBase.h"
 #include "packet.h"
 
 #include <iostream>
@@ -22,30 +23,26 @@ struct ReceiverState {
     std::vector<uint8_t> app_buffer;
 };
 
-class GBNManager {
+class GBNManager : public ManagerBase {
     public:
     GBNManager(SOCKET sock, const sockaddr_in &targetAddr,
                const std::string &roleName);
 
     // 发送端方法 (Server/Client 都可以调用此方法发送)
-    bool sendData(const char *buffer, int len);
-    void checkTimeoutAndRetransmit();
+    bool sendData(const char *buffer, int len) override;
+    void checkTimeoutAndRetransmit() override;
     void resetTransaction();
 
     // 接收端方法 (处理收到的 Packet)
-    void processReceivedPacket(const Packet &p, const sockaddr_in &senderAddr);
+    void processReceivedPacket(const Packet &p, const sockaddr_in &senderAddr) override;
 
     // 查询状态
-    bool isWindowFull() const;
+    bool isWindowFull() const override;
 
-    std::string getRoleName() const {
-        return m_roleName;
-    }
-    SOCKET getSocket() const {
-        return m_sock;
-    }
+    std::string getRoleName() const override { return m_roleName; }
+    SOCKET getSocket() const override { return m_sock; }
 
-    size_t read(std::vector<uint8_t> &output, size_t max_len);
+    size_t read(std::vector<uint8_t> &output, size_t max_len) override;
 
     private:
     SOCKET m_sock;

@@ -27,7 +27,8 @@ void GBNManager::sendAck(uint8_t ack_num, const sockaddr_in &targetAddr) {
 void GBNManager::handleAck(uint8_t ack_num) {
     uint8_t old_base = m_senderState.base;
     // 计算确认了多少个包
-    uint8_t count_acked = (ack_num - m_senderState.base) % SEQ_SPACE;
+    uint8_t count_acked =
+        (SEQ_SPACE + ack_num - m_senderState.base) % SEQ_SPACE;
 
     // 检查 ACK 是否有效
     if (count_acked > 0 && count_acked <= WINDOW_SIZE) {
@@ -85,7 +86,8 @@ void GBNManager::handleData(const Packet &p, const sockaddr_in &senderAddr) {
     }
 }
 bool GBNManager::isWindowFull() const {
-    return (m_senderState.next_seq_num - m_senderState.base) % SEQ_SPACE >=
+    return (m_senderState.next_seq_num - m_senderState.base + SEQ_SPACE) %
+               SEQ_SPACE >=
            WINDOW_SIZE;
 }
 
@@ -139,7 +141,8 @@ void GBNManager::checkTimeoutAndRetransmit() {
              << m_senderState.base << endl;
 
         uint16_t count =
-            (m_senderState.next_seq_num - m_senderState.base) % SEQ_SPACE;
+            (m_senderState.next_seq_num - m_senderState.base + SEQ_SPACE) %
+            SEQ_SPACE;
 
         // 重传所有窗口内未确认的数据包
         for (uint16_t i = 0; i < count; ++i) {

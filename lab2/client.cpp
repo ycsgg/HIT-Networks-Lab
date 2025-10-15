@@ -1,13 +1,14 @@
 #include "../logger/logger.h"
 #include "GBNmanager.h"
+#include "SRmanager.h"
 #include "network_utils.h"
-#include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
-#include <fstream>
-#include <filesystem>
+
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -69,10 +70,11 @@ int main() {
 
     tunnelAddr.sin_port = htons(TUNNEL_PORT);
 
-    GBNManager gbnManager(clientSock, tunnelAddr, "CLIENT");
+    // GBNManager udpManager(clientSock, tunnelAddr, "CLIENT");
+    SRManager  udpManager(clientSock, tunnelAddr, "CLIENT");
 
     info << "--------------------------------------------------------" << endl;
-    info << "Client (GBN Manager) is running on port " << CLIENT_LOCAL_PORT
+    info << "Client (GBN/SR Manager) is running on port " << CLIENT_LOCAL_PORT
          << endl;
     info << "Sending/Receiving via Tunnel at " << TUNNEL_IP << ":"
          << TUNNEL_PORT << endl;
@@ -82,25 +84,30 @@ int main() {
         info << "Command >> ";
         info.flush();
         std::string line;
-        if (!std::getline(std::cin, line)) break;
-        if (line.empty()) continue;
+        if (!std::getline(std::cin, line))
+            break;
+        if (line.empty())
+            continue;
 
         std::istringstream iss(line);
         std::string cmd;
         iss >> cmd;
 
+
         if (cmd == "time") {
             std::string command_data = "time_request";
-            sendData(gbnManager, std::vector<uint8_t>(command_data.begin(), command_data.end()));
-            std::vector<uint8_t> response = recvData(gbnManager);
+            sendData(udpManager, std::vector<uint8_t>(command_data.begin(),
+                                                      command_data.end()));
+            std::vector<uint8_t> response = recvData(udpManager);
             processResponse(response);
             continue;
         }
 
         if (cmd == "quit") {
             std::string command_data = "quit";
-            sendData(gbnManager, std::vector<uint8_t>(command_data.begin(), command_data.end()));
-            std::vector<uint8_t> response = recvData(gbnManager);
+            sendData(udpManager, std::vector<uint8_t>(command_data.begin(),
+                                                      command_data.end()));
+            std::vector<uint8_t> response = recvData(udpManager);
             processResponse(response);
             info << "Quit command processed. Exiting." << std::endl;
             break;
@@ -114,7 +121,8 @@ int main() {
                 continue;
             }
             if (remotename.empty()) {
-                remotename = std::filesystem::path(localpath).filename().string();
+                remotename =
+                    std::filesystem::path(localpath).filename().string();
             }
 
             // 读取本地文件
@@ -123,17 +131,20 @@ int main() {
                 error << "Failed to open local file: " << localpath << endl;
                 continue;
             }
-            std::vector<uint8_t> file_bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+            std::vector<uint8_t> file_bytes(
+                (std::istreambuf_iterator<char>(ifs)),
+                std::istreambuf_iterator<char>());
 
             // 发送控制消息
             std::string ctrl = std::string("UPLOAD:") + remotename;
-            sendData(gbnManager, std::vector<uint8_t>(ctrl.begin(), ctrl.end()));
+            sendData(udpManager,
+                     std::vector<uint8_t>(ctrl.begin(), ctrl.end()));
 
             // 发送文件内容
-            sendData(gbnManager, file_bytes);
+            sendData(udpManager, file_bytes);
 
             // 等待服务器确认
-            std::vector<uint8_t> response = recvData(gbnManager);
+            std::vector<uint8_t> response = recvData(udpManager);
             processResponse(response);
             continue;
         }
@@ -148,10 +159,11 @@ int main() {
 
             // 发送下载请求
             std::string ctrl = std::string("DOWNLOAD:") + remotename;
-            sendData(gbnManager, std::vector<uint8_t>(ctrl.begin(), ctrl.end()));
+            sendData(udpManager,
+                     std::vector<uint8_t>(ctrl.begin(), ctrl.end()));
 
             // 先接收控制响应（可能是 ERROR 或 FILESIZE）
-            std::vector<uint8_t> header = recvData(gbnManager);
+            std::vector<uint8_t> header = recvData(udpManager);
             if (header.empty()) {
                 error << "Empty response for download request" << endl;
                 continue;
@@ -163,7 +175,7 @@ int main() {
             }
             if (header_str.rfind("FILESIZE:", 0) == 0) {
                 // 接收文件数据
-                std::vector<uint8_t> file_bytes = recvData(gbnManager);
+                std::vector<uint8_t> file_bytes = recvData(udpManager);
                 if (file_bytes.empty()) {
                     error << "Failed to receive file bytes" << endl;
                     continue;
@@ -171,11 +183,13 @@ int main() {
                 // 写入本地文件
                 std::ofstream ofs(localname, std::ios::binary);
                 if (!ofs) {
-                    error << "Failed to create local file: " << localname << endl;
+                    error << "Failed to create local file: " << localname
+                          << endl;
                     continue;
                 }
                 ofs.write((const char *)file_bytes.data(), file_bytes.size());
-                info << "Downloaded " << remotename << " -> " << localname << endl;
+                info << "Downloaded " << remotename << " -> " << localname
+                     << endl;
                 continue;
             }
 

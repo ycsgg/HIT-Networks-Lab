@@ -14,7 +14,7 @@
 constexpr int TUNNEL_PORT = 8888;
 constexpr int SERVER_PORT = 8889;
 constexpr int CLIENT_PORT = 8887;
-constexpr double LOSS_RATE = 0; // 模拟丢包概率
+constexpr double LOSS_RATE = 0.2; // 模拟丢包概率
 using logger::error;
 using logger::info;
 using logger::warn;
@@ -56,10 +56,6 @@ int main() {
     info << "Simulated packet loss rate: " << LOSS_RATE * 100 << "%" << endl;
 
     srand(static_cast<unsigned int>(time(0)));
-
-    sockaddr_in clientAddr, serverAddr;
-    int clientAddrLen = sizeof(clientAddr);
-    int serverAddrLen = sizeof(serverAddr);
 
     while (true) {
         Packet packet;

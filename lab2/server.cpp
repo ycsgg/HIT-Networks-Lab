@@ -1,7 +1,8 @@
 #include "../logger/logger.h"
 #include "GBNmanager.h"
+#include "ManagerBase.h"
+#include "SRmanager.h"
 #include "network_utils.h"
-#include <algorithm>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -21,7 +22,7 @@ using std::endl;
 using std::string;
 using std::vector;
 
-void processAndRespond(GBNManager &gbnManager,
+void processAndRespond(ManagerBase &udpManager,
                        const std::vector<uint8_t> &data) {
     if (data.empty())
         return;
@@ -33,10 +34,10 @@ void processAndRespond(GBNManager &gbnManager,
     if (command_str.rfind("UPLOAD:", 0) == 0) {
         std::string filename = command_str.substr(strlen("UPLOAD:"));
         // 接收文件内容
-        std::vector<uint8_t> file_bytes = recvData(gbnManager);
+        std::vector<uint8_t> file_bytes = recvData(udpManager);
         if (file_bytes.empty()) {
             std::string err = "ERROR: Empty file received";
-            sendData(gbnManager, std::vector<uint8_t>(err.begin(), err.end()));
+            sendData(udpManager, std::vector<uint8_t>(err.begin(), err.end()));
             return;
         }
         // 确保 uploads 目录存在
@@ -45,12 +46,12 @@ void processAndRespond(GBNManager &gbnManager,
         std::ofstream ofs(outpath, std::ios::binary);
         if (!ofs) {
             std::string err = std::string("ERROR: Cannot create file: ") + outpath;
-            sendData(gbnManager, std::vector<uint8_t>(err.begin(), err.end()));
+            sendData(udpManager, std::vector<uint8_t>(err.begin(), err.end()));
             return;
         }
         ofs.write((const char *)file_bytes.data(), file_bytes.size());
         std::string ok = std::string("UPLOAD_OK:") + filename;
-        sendData(gbnManager, std::vector<uint8_t>(ok.begin(), ok.end()));
+        sendData(udpManager, std::vector<uint8_t>(ok.begin(), ok.end()));
         info << "Saved uploaded file to: " << outpath << std::endl;
         return;
     }
@@ -60,16 +61,16 @@ void processAndRespond(GBNManager &gbnManager,
         std::string path = std::string("uploads/") + filename;
         if (!std::filesystem::exists(path)) {
             std::string err = std::string("ERROR: File not found: ") + filename;
-            sendData(gbnManager, std::vector<uint8_t>(err.begin(), err.end()));
+            sendData(udpManager, std::vector<uint8_t>(err.begin(), err.end()));
             return;
         }
         // 读取文件并先发 header FILESIZE:NN
         std::ifstream ifs(path, std::ios::binary);
         std::vector<uint8_t> file_bytes((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         std::string header = std::string("FILESIZE:") + std::to_string(file_bytes.size());
-        sendData(gbnManager, std::vector<uint8_t>(header.begin(), header.end()));
+        sendData(udpManager, std::vector<uint8_t>(header.begin(), header.end()));
         // 发送文件内容
-        sendData(gbnManager, file_bytes);
+        sendData(udpManager, file_bytes);
         info << "Served download for: " << filename << " (" << file_bytes.size() << " bytes)" << std::endl;
         return;
     }
@@ -89,7 +90,7 @@ void processAndRespond(GBNManager &gbnManager,
 
     // 发送响应
     std::vector<uint8_t> response(response_data.begin(), response_data.end());
-    sendData(gbnManager, response);
+    sendData(udpManager, response);
     info << "[SERVER] Response sent successfully." << endl;
 }
 
@@ -120,10 +121,11 @@ int main() {
     InetPton(AF_INET, TUNNEL_IP, &tunnelAddr.sin_addr);
     tunnelAddr.sin_port = htons(TUNNEL_PORT);
 
-    GBNManager gbnManager(serverSock, tunnelAddr, "SERVER");
+    SRManager  udpManager(serverSock, tunnelAddr, "SERVER");
+    // GBNManager udpManager(serverSock, tunnelAddr, "SERVER");
 
     info << "--------------------------------------------------------" << endl;
-    info << "Server (GBN Manager) is running on port " << SERVER_LOCAL_PORT
+    info << "Server (GBN/SR Manager) is running on port " << SERVER_LOCAL_PORT
          << endl;
     info << "--------------------------------------------------------" << endl;
 
@@ -132,10 +134,10 @@ int main() {
 
     while (true) {
         // 接收客户端命令
-        std::vector<uint8_t> data = recvData(gbnManager);
+        std::vector<uint8_t> data = recvData(udpManager);
         
         if (!data.empty()) {
-            processAndRespond(gbnManager, data);
+            processAndRespond(udpManager, data);
         }
 
         Sleep(10); // 避免 busy-wait
