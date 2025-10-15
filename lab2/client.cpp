@@ -2,13 +2,14 @@
 #include "GBNmanager.h"
 #include "SRmanager.h"
 #include "network_utils.h"
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
-
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -111,6 +112,81 @@ int main() {
             processResponse(response);
             info << "Quit command processed. Exiting." << std::endl;
             break;
+        }
+
+        if (cmd == "echo") {
+            // Echo 命令：发送文本，服务器原样返回（测试全双工）
+            std::string message;
+            std::getline(iss, message);
+            if (message.empty()) {
+                warn << "Usage: echo <message>" << endl;
+                continue;
+            }
+            message = message.substr(1); // 去掉前导空格
+            
+            std::string command_data = "ECHO:" + message;
+            info << "[CLIENT] Sending echo request: " << message << endl;
+            sendData(udpManager, std::vector<uint8_t>(command_data.begin(),
+                                                      command_data.end()));
+            std::vector<uint8_t> response = recvData(udpManager);
+            processResponse(response);
+            continue;
+        }
+
+        if (cmd == "ping") {
+            // Ping 命令：发送多个连续请求，测试全双工并发（观察 seq/ack）
+            int count = 5;
+            iss >> count;
+            if (count <= 0 || count > 100) count = 5;
+            
+            info << "[CLIENT] Sending " << count << " ping requests..." << endl;
+            
+            for (int i = 0; i < count; ++i) {
+                std::string command_data = "PING:" + std::to_string(i);
+                sendData(udpManager, std::vector<uint8_t>(command_data.begin(),
+                                                          command_data.end()));
+                info << "[CLIENT] Ping " << i << " sent" << endl;
+                Sleep(100); // 短暂间隔观察全双工效果
+            }
+            
+            // 接收所有响应
+            for (int i = 0; i < count; ++i) {
+                std::vector<uint8_t> response = recvData(udpManager);
+                processResponse(response);
+            }
+            continue;
+        }
+
+        if (cmd == "stream") {
+            // Stream 命令：持续发送数据流，测试全双工持续传输
+            int duration_sec = 3;
+            iss >> duration_sec;
+            if (duration_sec <= 0 || duration_sec > 60) duration_sec = 3;
+            
+            info << "[CLIENT] Streaming for " << duration_sec << " seconds..." << endl;
+            
+            DWORD start_time = GetTickCount();
+            int packet_count = 0;
+            
+            while ((GetTickCount() - start_time) < (DWORD)(duration_sec * 1000)) {
+                std::string command_data = "STREAM:" + std::to_string(packet_count++);
+                sendData(udpManager, std::vector<uint8_t>(command_data.begin(),
+                                                          command_data.end()));
+                Sleep(50); // 每 50ms 发送一个包
+            }
+            
+            info << "[CLIENT] Sent " << packet_count << " stream packets" << endl;
+            
+            // 接收所有响应
+            for (int i = 0; i < packet_count; ++i) {
+                std::vector<uint8_t> response = recvData(udpManager);
+                if (i == 0 || i == packet_count - 1) {
+                    // 只显示第一个和最后一个响应
+                    processResponse(response);
+                }
+            }
+            info << "[CLIENT] Received all " << packet_count << " responses" << endl;
+            continue;
         }
 
         if (cmd == "upload") {

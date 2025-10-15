@@ -13,10 +13,10 @@ TARGETS = server client tunnel
 # 定义对象文件目录 (可选，用于保持工作区整洁)
 OBJDIR = obj
 # 创建一个对象文件列表 (通过替换 .cpp 为 .o 并调整路径)
-# 注意：logger.cpp 的对象文件路径也需要处理
-SERVER_OBJS = $(OBJDIR)/server.o $(OBJDIR)/GBNmanager.o $(OBJDIR)/logger.o $(OBJDIR)/network_utils.o $(OBJDIR)/SRmanager.o
-CLIENT_OBJS = $(OBJDIR)/client.o $(OBJDIR)/GBNmanager.o $(OBJDIR)/logger.o $(OBJDIR)/network_utils.o $(OBJDIR)/SRmanager.o
-TUNNEL_OBJS = $(OBJDIR)/tunnel.o $(OBJDIR)/logger.o $(OBJDIR)/network_utils.o $(OBJDIR)/SRmanager.o
+# 全双工多线程版本
+SERVER_OBJS = $(OBJDIR)/server.o $(OBJDIR)/GBNmanager.o $(OBJDIR)/SRmanager.o $(OBJDIR)/network_utils.o $(OBJDIR)/logger.o
+CLIENT_OBJS = $(OBJDIR)/client.o $(OBJDIR)/GBNmanager.o $(OBJDIR)/SRmanager.o $(OBJDIR)/network_utils.o $(OBJDIR)/logger.o
+TUNNEL_OBJS = $(OBJDIR)/tunnel.o $(OBJDIR)/logger.o
 
 # 默认目标：编译所有可执行文件
 all: $(TARGETS)
@@ -51,5 +51,7 @@ debug: CXXFLAGS = $(DEBUG_CXXFLAGS)
 debug: all
 
 # ----------------- 清理目标 -----------------
+clean:
+	rm -f $(OBJDIR)/*.o $(TARGETS) $(TARGETS:=.exe)
 
-.PHONY: all  debug
+.PHONY: all debug clean

@@ -1,8 +1,9 @@
 #include "../logger/logger.h"
 #include "GBNmanager.h"
-#include "ManagerBase.h"
 #include "SRmanager.h"
 #include "network_utils.h"
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -72,6 +73,37 @@ void processAndRespond(ManagerBase &udpManager,
         // 发送文件内容
         sendData(udpManager, file_bytes);
         info << "Served download for: " << filename << " (" << file_bytes.size() << " bytes)" << std::endl;
+        return;
+    }
+
+    // 处理 ECHO 命令（全双工测试：原样返回）
+    if (command_str.rfind("ECHO:", 0) == 0) {
+        std::string message = command_str.substr(5);
+        std::string response_data = "ECHO_REPLY: " + message;
+        info << "[SERVER] Echo request: " << message << endl;
+        sendData(udpManager, std::vector<uint8_t>(response_data.begin(), response_data.end()));
+        info << "[SERVER] Echo reply sent" << endl;
+        return;
+    }
+
+    // 处理 PING 命令（全双工测试：快速响应）
+    if (command_str.rfind("PING:", 0) == 0) {
+        std::string seq = command_str.substr(5);
+        std::string response_data = "PONG:" + seq;
+        sendData(udpManager, std::vector<uint8_t>(response_data.begin(), response_data.end()));
+        info << "[SERVER] Pong " << seq << " sent" << endl;
+        return;
+    }
+
+    // 处理 STREAM 命令（全双工测试：持续流）
+    if (command_str.rfind("STREAM:", 0) == 0) {
+        std::string seq = command_str.substr(7);
+        std::string response_data = "STREAM_ACK:" + seq;
+        sendData(udpManager, std::vector<uint8_t>(response_data.begin(), response_data.end()));
+        // 不打印每个包的日志，避免刷屏
+        if (seq == "0" || std::stoi(seq) % 10 == 0) {
+            info << "[SERVER] Stream ACK " << seq << " sent" << endl;
+        }
         return;
     }
 
