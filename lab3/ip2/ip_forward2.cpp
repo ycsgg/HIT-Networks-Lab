@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
     int config_idx = std::atoi(argv[1]);
     const RouterConfig* current_config = nullptr;
 
-    // 1. 根据命令行参数选择配置
+    // 根据命令行参数选择配置
     switch (config_idx) {
         case 1: current_config = &config1; break;
         case 2: current_config = &config2; break;

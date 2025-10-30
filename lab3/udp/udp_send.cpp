@@ -1,4 +1,3 @@
-// udp_send.cpp (修改后)
 #include <iostream>
 #include <cstring>
 #include <sys/socket.h>
@@ -39,13 +38,13 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in forward_addr;
     char buffer[MAX_BUF_SIZE];
     
-    // 1. 创建套接字
+    // 创建套接字
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Socket creation failed");
         return 1;
     }
 
-    // 2. 设置目标地址信息 (udp_forward)
+    // 设置目标地址信息
     memset(&forward_addr, 0, sizeof(forward_addr));
     forward_addr.sin_family = AF_INET;
     forward_addr.sin_port = htons(forward_port); // 使用参数传入的目标端口
@@ -65,12 +64,12 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // 3. 准备数据
+        // 准备数据
         strncpy(buffer, line.c_str(), MAX_BUF_SIZE - 1);
         buffer[MAX_BUF_SIZE - 1] = '\0';
         int len = line.length();
 
-        // 4. 发送数据
+        // 发送数据
         ssize_t sent_bytes = sendto(sockfd, buffer, len, 0,
                                     (const struct sockaddr*)&forward_addr, sizeof(forward_addr));
 
@@ -79,12 +78,12 @@ int main(int argc, char *argv[]) {
             continue;
         }
         
-        // 5. 日志信息 (添加时间)
+        // 日志信息
         std::cout << "[" << get_current_time() << " LOG: SEND] 成功发送 " << sent_bytes << " 字节: '" << line << "'" << std::endl;
         std::cout << "继续输入: " << std::endl;
     }
 
-    // 6. 关闭套接字
+    // 关闭套接字
     close(sockfd);
     std::cout << "--- UDP Sender 退出 ---" << std::endl;
     return 0;

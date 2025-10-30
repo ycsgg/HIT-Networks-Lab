@@ -92,13 +92,13 @@ int main() {
     struct sockaddr_ll socket_address;
     unsigned char buffer[BUFFER_SIZE];
 
-    // 1. 创建原始套接字 (监听所有以太网帧)
+    // 创建原始套接字 (监听所有以太网帧)
     if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_IP))) == -1) {
         perror("socket failed (need root)");
         return 1;
     }
 
-    // 2. 获取接口索引
+    // 获取接口索引
     memset(&if_idx, 0, sizeof(struct ifreq));
     strncpy(if_idx.ifr_name, INTERFACE_NAME, IFNAMSIZ - 1);
     if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0) {
@@ -107,7 +107,7 @@ int main() {
         return 1;
     }
 
-    // 3. 绑定套接字到接口
+    // 绑定套接字到接口
     memset(&socket_address, 0, sizeof(struct sockaddr_ll));
     socket_address.sll_family = AF_PACKET;
     socket_address.sll_protocol = htons(ETH_P_IP);

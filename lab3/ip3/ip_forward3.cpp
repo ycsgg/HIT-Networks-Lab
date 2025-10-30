@@ -200,13 +200,13 @@ int main(int argc, char *argv[]) {
 
     int sockfd;
 
-    // 1. 创建原始套接字
+    // 创建原始套接字
     if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
         perror("socket failed (need root)");
         return 1;
     }
 
-    // 2. 初始化接口信息
+    // 初始化接口信息
     for (auto &iface : interfaces) {
         if (!init_interface(sockfd, iface)) {
             close(sockfd);
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // 3. 打印配置
+    // 打印配置
     std::cout << "--- 双网口路由器配置 ---" << std::endl;
     for (const auto &iface : interfaces) {
         char net_str[INET_ADDRSTRLEN];
@@ -231,7 +231,7 @@ int main(int argc, char *argv[]) {
     unsigned char buffer[BUFFER_SIZE];
 
     while (1) {
-        // 4. 接收数据包 (L2 帧)
+        // 接收数据包 (L2 帧)
         struct sockaddr_ll from_addr;
         socklen_t from_len = sizeof(from_addr);
         ssize_t received_bytes =
@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
         struct iphdr *ip_hdr =
             (struct iphdr *)(buffer + sizeof(struct ether_header));
 
-        // 5. 确定数据包来自哪个接口
+        // 确定数据包来自哪个接口
         RouterInterface *incoming_iface = nullptr;
         for (auto &iface : interfaces) {
             if (iface.if_index == from_addr.sll_ifindex) {
@@ -260,31 +260,31 @@ int main(int argc, char *argv[]) {
         if (incoming_iface == nullptr)
             continue; 
 
-        // 6. 检查目的 MAC 是否是该接口的 MAC
+        // 检查目的 MAC 是否是该接口的 MAC
         if (memcmp(eh->ether_dhost, incoming_iface->mac_addr, ETH_ALEN) != 0) {
             continue;
         }
 
-        // 7. 检查 IP 头部，判断是否是发给路由器自己的
+        // 检查 IP 头部，判断是否是发给路由器自己的
         in_addr_t router_ip_int = inet_addr(incoming_iface->ip_addr_str);
         if (ip_hdr->daddr == router_ip_int) {
             continue;
         }
 
-        // 8. 打印接收信息
+        // 打印接收信息
         print_packet_info(buffer, received_bytes, "RECV",
                           incoming_iface->if_name);
 
-        // 9. 转发逻辑
+        // 转发逻辑
 
-        // a. TTL 检查
+        // TTL 检查
         if (ip_hdr->ttl <= 1) {
             std::cerr << "[" << get_current_time() << " LOG: DROP] TTL 过期 ("
                       << (int)ip_hdr->ttl << ")，丢弃数据包。" << std::endl;
             continue;
         }
 
-        // b. 查路由表
+        // 查路由表
         const RouteEntry *route = find_route(ip_hdr->daddr);
 
         if (route == nullptr) {
@@ -295,7 +295,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // c. 确定出接口信息
+        // 确定出接口信息
         RouterInterface *outgoing_iface = nullptr;
         for (auto &iface : interfaces) {
             if (strcmp(iface.if_name, route->outgoing_if_name) == 0) {
@@ -311,23 +311,23 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // d. 修改 L3 头部
+        // 修改 L3 头部
         ip_hdr->ttl--;
         ip_hdr->check = 0;
         ip_hdr->check =
             checksum((unsigned short *)ip_hdr, sizeof(struct iphdr));
 
-        // e. 修改 L2 头部
+        // 修改 L2 头部
         memcpy(eh->ether_shost, outgoing_iface->mac_addr,
                ETH_ALEN); // Src MAC: 出接口的 MAC
         memcpy(eh->ether_dhost, route->next_hop_mac,
                ETH_ALEN); // Dst MAC: 下一跳的 MAC
 
-        // 10. 打印转发信息
+        // 打印转发信息
         print_packet_info(buffer, received_bytes, "FORWARD",
                           outgoing_iface->if_name);
 
-        // 11. 重新发送数据包 (通过指定的出接口)
+        // 重新发送数据包
         struct sockaddr_ll socket_send_addr;
         memset(&socket_send_addr, 0, sizeof(struct sockaddr_ll));
         socket_send_addr.sll_ifindex = outgoing_iface->if_index;

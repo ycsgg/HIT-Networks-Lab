@@ -1,4 +1,4 @@
-#include <algorithm> // for std::min
+#include <algorithm>
 #include <arpa/inet.h>
 #include <chrono>
 #include <ctime>
@@ -102,7 +102,7 @@ void send_reply(int sockfd, int if_index, const unsigned char *src_mac,
     int total_len = sizeof(struct ether_header) + sizeof(struct iphdr) +
                     sizeof(struct udphdr) + reply_msg_len;
 
-    // 1. 构造以太网帧
+    // 构造以太网帧
     memset(reply_buffer, 0, BUFFER_SIZE);
     struct ether_header *eh = (struct ether_header *)reply_buffer;
 
@@ -113,7 +113,7 @@ void send_reply(int sockfd, int if_index, const unsigned char *src_mac,
     // 类型: IP (0x0800)
     eh->ether_type = htons(0x0800);
 
-    // 2. 构造 IP 头
+    // 构造 IP 头
     struct iphdr *iph =
         (struct iphdr *)(reply_buffer + sizeof(struct ether_header));
     iph->ihl = 5;
@@ -126,13 +126,13 @@ void send_reply(int sockfd, int if_index, const unsigned char *src_mac,
     iph->ttl = 64;                 // 初始 TTL
     iph->protocol = IPPROTO_UDP;
     iph->check = 0;
-    // 源IP: 接收方 IP (192.168.20.2)
+    // 源IP: 接收方 IP 
     iph->saddr = inet_addr(RECEIVER_IP_STR);
-    // 目的IP: 发送方 IP (in_iph->saddr)
+    // 目的IP: 发送方 IP 
     iph->daddr = in_iph->saddr;
     iph->check = checksum((unsigned short *)iph, sizeof(struct iphdr));
 
-    // 3. 构造 UDP 头
+    // 构造 UDP 头
     struct udphdr *udph =
         (struct udphdr *)(reply_buffer + sizeof(struct ether_header) +
                           sizeof(struct iphdr));
@@ -141,19 +141,19 @@ void send_reply(int sockfd, int if_index, const unsigned char *src_mac,
     udph->len = htons(sizeof(struct udphdr) + reply_msg_len);
     udph->check = 0;
 
-    // 4. 填充数据
+    // 填充数据
     unsigned char *data = reply_buffer + sizeof(struct ether_header) +
                           sizeof(struct iphdr) + sizeof(struct udphdr);
     memcpy(data, reply_msg, reply_msg_len);
 
-    // 5. 设置 socket 地址结构
+    // 设置 socket 地址结构
     struct sockaddr_ll socket_address;
     memset(&socket_address, 0, sizeof(struct sockaddr_ll));
     socket_address.sll_ifindex = if_index;
     socket_address.sll_halen = ETH_ALEN;
     memcpy(socket_address.sll_addr, ROUTER_20_MAC, ETH_ALEN);
 
-    // 6. 发送
+    // 发送
     std::cout << "\n[" << get_current_time()
               << " LOG: SENDER] 发送回复数据包..." << std::endl;
     if (sendto(sockfd, reply_buffer, total_len, 0,
@@ -179,13 +179,13 @@ int main() {
     struct sockaddr_ll socket_address;
     unsigned char buffer[BUFFER_SIZE];
 
-    // 1. 创建原始套接字 (监听 IP 帧)
+    // 创建原始套接字 (监听 IP 帧)
     if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_IP))) == -1) {
         perror("socket failed (need root)");
         return 1;
     }
 
-    // 2. 获取接口索引和MAC地址
+    // 获取接口索引和MAC地址
     memset(&if_idx, 0, sizeof(struct ifreq));
     strncpy(if_idx.ifr_name, INTERFACE_NAME, IFNAMSIZ - 1);
     if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0) {
@@ -194,7 +194,7 @@ int main() {
         return 1;
     }
 
-    // 获取本机MAC，用于回复
+    // 获取本机MAC
     memset(&if_mac, 0, sizeof(struct ifreq));
     strncpy(if_mac.ifr_name, INTERFACE_NAME, IFNAMSIZ - 1);
     if (ioctl(sockfd, SIOCGIFHWADDR, &if_mac) < 0) {
@@ -205,7 +205,7 @@ int main() {
     const unsigned char *src_mac =
         (const unsigned char *)if_mac.ifr_hwaddr.sa_data;
 
-    // 3. 绑定套接字到接口
+    // 绑定套接字到接口
     memset(&socket_address, 0, sizeof(struct sockaddr_ll));
     socket_address.sll_family = AF_PACKET;
     socket_address.sll_protocol = htons(ETH_P_IP);
@@ -260,7 +260,7 @@ int main() {
 
         print_final_info(buffer, received_bytes);
 
-        // **发送回复**
+        // 发送回复
         const char reply_msg[] = "Hello! Got your message loud and clear.";
         send_reply(sockfd, if_idx.ifr_ifindex, src_mac, iph, reply_msg);
     }

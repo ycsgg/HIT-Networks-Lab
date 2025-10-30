@@ -1,4 +1,3 @@
-// ip_send.cpp - 原始套接字发送端
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
 #include <net/if.h>
@@ -64,13 +63,13 @@ int main() {
     const char msg[] = "UDP Payload from Host A (192.168.1.2)";
     size_t msg_len = strlen(msg);
 
-    // 1. 创建原始套接字
+    // 创建原始套接字
     if ((sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1) {
         perror("socket");
         return 1;
     }
 
-    // 2. 获取接口索引和MAC地址
+    // 获取接口索引和MAC地址
     memset(&if_idx, 0, sizeof(struct ifreq));
     strncpy(if_idx.ifr_name, INTERFACE_NAME, IFNAMSIZ - 1);
     if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0) {
@@ -87,7 +86,7 @@ int main() {
     }
     const unsigned char* src_mac = (const unsigned char*)if_mac.ifr_hwaddr.sa_data;
     
-    // 3. 构造以太网帧
+    // 构造以太网帧
     memset(buffer, 0, BUFFER_SIZE);
     struct ether_header *eh = (struct ether_header *)buffer;
     
@@ -98,7 +97,7 @@ int main() {
     // 类型: IP (0x0800)
     eh->ether_type = htons(0x0800);
 
-    // 4. 构造 IP 头
+    // 构造 IP 头
     struct iphdr *iph = (struct iphdr *)(buffer + sizeof(struct ether_header));
     iph->ihl = 5;
     iph->version = 4;
@@ -115,7 +114,7 @@ int main() {
     // 计算 IP 校验和
     iph->check = checksum((unsigned short *)iph, sizeof(struct iphdr));
 
-    // 5. 构造 UDP 头
+    // 构造 UDP 头
     struct udphdr *udph =
         (struct udphdr *)(buffer + sizeof(struct ether_header) + sizeof(struct iphdr));
     udph->source = htons(UDP_SRC_PORT);
@@ -124,16 +123,16 @@ int main() {
     udph->len = htons(sizeof(struct udphdr) + msg_len);
     udph->check = 0; // 校验和设为0
 
-    // 6. 填充数据
+    // 填充数据
     unsigned char *data = buffer + sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr);
     memcpy(data, msg, msg_len);
     
-    // 7. 设置 socket 地址结构
+    // 设置 socket 地址结构
     socket_address.sll_ifindex = if_idx.ifr_ifindex;
     socket_address.sll_halen = ETH_ALEN;
     memcpy(socket_address.sll_addr, DEST_MAC, ETH_ALEN);
 
-    // 8. 发送数据包
+    // 发送数据包
     int total_len = sizeof(struct ether_header) + sizeof(struct iphdr) + sizeof(struct udphdr) + msg_len;
     
     // 日志
