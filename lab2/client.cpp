@@ -57,7 +57,7 @@ int main() {
         return 1;
     }
 
-    // 4. 设置Tunnel地址
+    // 设置Tunnel地址
     sockaddr_in tunnelAddr;
     tunnelAddr.sin_family = AF_INET;
 
@@ -70,8 +70,8 @@ int main() {
 
     tunnelAddr.sin_port = htons(TUNNEL_PORT);
 
-    // GBNManager udpManager(clientSock, tunnelAddr, "CLIENT");
-    SRManager  udpManager(clientSock, tunnelAddr, "CLIENT");
+    GBNManager udpManager(clientSock, tunnelAddr, "CLIENT");
+    // SRManager  udpManager(clientSock, tunnelAddr, "CLIENT");
 
     info << "--------------------------------------------------------" << endl;
     info << "Client (GBN/SR Manager) is running on port " << CLIENT_LOCAL_PORT

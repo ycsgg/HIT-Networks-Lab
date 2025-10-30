@@ -121,8 +121,8 @@ int main() {
     InetPton(AF_INET, TUNNEL_IP, &tunnelAddr.sin_addr);
     tunnelAddr.sin_port = htons(TUNNEL_PORT);
 
-    SRManager  udpManager(serverSock, tunnelAddr, "SERVER");
-    // GBNManager udpManager(serverSock, tunnelAddr, "SERVER");
+    // SRManager  udpManager(serverSock, tunnelAddr, "SERVER");
+    GBNManager udpManager(serverSock, tunnelAddr, "SERVER");
 
     info << "--------------------------------------------------------" << endl;
     info << "Server (GBN/SR Manager) is running on port " << SERVER_LOCAL_PORT
